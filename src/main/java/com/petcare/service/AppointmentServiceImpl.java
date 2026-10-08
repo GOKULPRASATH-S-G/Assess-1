@@ -13,15 +13,19 @@ import com.petcare.util.IdGenerator;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.stream.Collectors;
 
 /**
  * In-memory implementation of AppointmentService enforcing appointment business rules.
+ * Demonstrates Map storage, List filtering, and deliberate Queue usage for clinic patient check-ins.
  */
 public class AppointmentServiceImpl implements AppointmentService {
     private final Map<String, Appointment> appointments = new LinkedHashMap<>();
+    private final Queue<Appointment> checkInQueue = new LinkedList<>();
     private final PetService petService;
     private final UserService userService;
 
@@ -81,6 +85,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         apt.setStatus(AppointmentStatus.COMPLETED);
+        checkInQueue.remove(apt);
         return apt;
     }
 
@@ -96,6 +101,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         apt.setStatus(AppointmentStatus.CANCELLED);
+        checkInQueue.remove(apt);
         return apt;
     }
 
@@ -134,5 +140,32 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new EntityNotFoundException("Appointment '" + appointmentId + "' not found.");
         }
         return appointments.get(appointmentId);
+    }
+
+    @Override
+    public Appointment checkInAppointment(String appointmentId) {
+        Appointment apt = getAppointmentById(appointmentId);
+        if (apt.getStatus() != AppointmentStatus.BOOKED) {
+            throw new BusinessRuleException("Only BOOKED appointments can be checked in to the daily clinic queue.");
+        }
+        if (!checkInQueue.contains(apt)) {
+            checkInQueue.offer(apt);
+        }
+        return apt;
+    }
+
+    @Override
+    public Queue<Appointment> getDailyQueue() {
+        return new LinkedList<>(checkInQueue);
+    }
+
+    @Override
+    public Appointment processNextAppointmentInQueue() {
+        if (checkInQueue.isEmpty()) {
+            throw new BusinessRuleException("No checked-in patients currently in the clinic queue.");
+        }
+        Appointment apt = checkInQueue.poll();
+        apt.setStatus(AppointmentStatus.COMPLETED);
+        return apt;
     }
 }

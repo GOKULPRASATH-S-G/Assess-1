@@ -1,7 +1,9 @@
 package com.petcare.ui;
 
+import com.petcare.exception.AdoptionException;
 import com.petcare.exception.BusinessRuleException;
 import com.petcare.exception.EntityNotFoundException;
+import com.petcare.exception.PetNotFoundException;
 import com.petcare.exception.ValidationException;
 import com.petcare.model.Adopter;
 import com.petcare.model.AdoptionApplication;
@@ -22,6 +24,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Queue;
 import java.util.Scanner;
 
 /**
@@ -117,7 +120,8 @@ public class ConsoleUI {
             System.out.println("3. View Adoption Applications");
             System.out.println("4. Approve Application");
             System.out.println("5. Reject Application");
-            System.out.println("6. Back");
+            System.out.println("6. Process Next Application in Queue (FIFO)");
+            System.out.println("7. Back");
             System.out.println();
 
             String choice = prompt("Enter choice: ").trim();
@@ -144,10 +148,13 @@ public class ConsoleUI {
                     handleRejectApplication();
                     break;
                 case "6":
+                    handleProcessQueue();
+                    break;
+                case "7":
                     inMenu = false;
                     break;
                 default:
-                    printError("Invalid choice. Please enter 1-6.");
+                    printError("Invalid choice. Please enter 1-7.");
             }
         }
     }
@@ -351,7 +358,7 @@ public class ConsoleUI {
             AdoptionApplication app = adoptionService.submitApplication(petId, adopter.getId(), reason);
             printSuccess("Adoption application submitted successfully!");
             System.out.println("Application ID: " + app.getApplicationId() + " (Status: " + app.getStatus() + ")");
-        } catch (EntityNotFoundException | ValidationException | BusinessRuleException e) {
+        } catch (AdoptionException | EntityNotFoundException | ValidationException | BusinessRuleException e) {
             printError(e.getMessage());
         }
     }
@@ -394,7 +401,7 @@ public class ConsoleUI {
             Pet pet = petService.getPetById(approved.getPetId());
             System.out.println(">> Pet " + pet.getPetId() + " (" + pet.getName() + ") status is now: " + pet.getAdoptionStatus());
             System.out.println(">> Registered Owner: " + pet.getOwnerId());
-        } catch (EntityNotFoundException | BusinessRuleException | ValidationException e) {
+        } catch (AdoptionException | EntityNotFoundException | BusinessRuleException | ValidationException e) {
             printError(e.getMessage());
         }
     }
@@ -416,7 +423,30 @@ public class ConsoleUI {
             printSuccess("Application " + rejected.getApplicationId() + " REJECTED.");
             Pet pet = petService.getPetById(rejected.getPetId());
             System.out.println(">> Pet " + pet.getPetId() + " (" + pet.getName() + ") remains: " + pet.getAdoptionStatus());
-        } catch (EntityNotFoundException | BusinessRuleException | ValidationException e) {
+        } catch (AdoptionException | EntityNotFoundException | BusinessRuleException | ValidationException e) {
+            printError(e.getMessage());
+        }
+    }
+
+    private void handleProcessQueue() {
+        System.out.println("\n--- Process Next Application from Queue (FIFO) ---");
+        Queue<AdoptionApplication> queue = adoptionService.getApplicationQueue();
+        if (queue.isEmpty()) {
+            System.out.println("Queue is empty. No pending applications.");
+            return;
+        }
+        AdoptionApplication next = queue.peek();
+        System.out.println("Next in FIFO queue: Application " + next.getApplicationId() +
+                " for Pet " + next.getPetId() + " by Adopter " + next.getAdopterId());
+        String action = prompt("Action: Approve (A) or Reject (R)? ").trim().toUpperCase();
+        boolean approve = !action.startsWith("R");
+        String notes = prompt("Enter review notes: ");
+
+        try {
+            AdoptionApplication processed = adoptionService.processNextApplicationInQueue(approve, notes);
+            printSuccess("Processed Application " + processed.getApplicationId() +
+                    " -> " + processed.getStatus() + " via Queue!");
+        } catch (AdoptionException | EntityNotFoundException | BusinessRuleException | ValidationException e) {
             printError(e.getMessage());
         }
     }

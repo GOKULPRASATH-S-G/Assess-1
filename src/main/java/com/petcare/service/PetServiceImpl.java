@@ -1,30 +1,43 @@
 package com.petcare.service;
 
-import com.petcare.exception.EntityNotFoundException;
+import com.petcare.exception.PetNotFoundException;
 import com.petcare.exception.ValidationException;
 import com.petcare.model.Gender;
 import com.petcare.model.Pet;
 import com.petcare.model.PetStatus;
+import com.petcare.repository.InMemoryRepository;
+import com.petcare.repository.Repository;
 import com.petcare.util.IdGenerator;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * In-memory implementation of PetService using Map and List collections.
+ * In-memory implementation of PetService utilizing a generic Repository,
+ * deliberate Set collections, Comparable, and Comparator sorting.
  */
 public class PetServiceImpl implements PetService {
-    private final Map<String, Pet> pets = new LinkedHashMap<>();
+    private final Repository<Pet, String> petRepository;
+
+    public PetServiceImpl() {
+        this.petRepository = new InMemoryRepository<>(Pet::getPetId);
+    }
+
+    public PetServiceImpl(Repository<Pet, String> petRepository) {
+        this.petRepository = petRepository;
+    }
 
     @Override
     public Pet addPet(String name, String species, String breed, int age, Gender gender) {
         validatePetInputs(name, species, breed, age);
         String petId = IdGenerator.nextId("P");
         Pet pet = new Pet(petId, name.trim(), species.trim(), breed.trim(), age, gender != null ? gender : Gender.MALE);
-        pets.put(pet.getPetId(), pet);
+        petRepository.save(pet);
         return pet;
     }
 
@@ -34,32 +47,33 @@ public class PetServiceImpl implements PetService {
             throw new ValidationException("Pet cannot be null.");
         }
         validatePetInputs(pet.getName(), pet.getSpecies(), pet.getBreed(), pet.getAge());
-        pets.put(pet.getPetId(), pet);
+        petRepository.save(pet);
     }
 
     @Override
     public Pet getPetById(String petId) {
-        if (petId == null || !pets.containsKey(petId)) {
-            throw new EntityNotFoundException("Pet with ID '" + petId + "' not found.");
+        if (petId == null) {
+            throw new PetNotFoundException("Pet ID cannot be null.");
         }
-        return pets.get(petId);
+        return petRepository.findById(petId)
+                .orElseThrow(() -> new PetNotFoundException("Pet with ID '" + petId + "' not found."));
     }
 
     @Override
     public List<Pet> getAllPets() {
-        return new ArrayList<>(pets.values());
+        return petRepository.findAll();
     }
 
     @Override
     public List<Pet> getAvailablePets() {
-        return pets.values().stream()
+        return petRepository.findAll().stream()
                 .filter(Pet::isAvailable)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<Pet> filterPets(String species, String breed) {
-        return pets.values().stream()
+        return petRepository.findAll().stream()
                 .filter(Pet::isAvailable)
                 .filter(p -> species == null || species.trim().isEmpty() ||
                         p.getSpecies().equalsIgnoreCase(species.trim()))
@@ -73,7 +87,7 @@ public class PetServiceImpl implements PetService {
         if (ownerId == null) {
             return new ArrayList<>();
         }
-        return pets.values().stream()
+        return petRepository.findAll().stream()
                 .filter(p -> ownerId.equals(p.getOwnerId()))
                 .collect(Collectors.toList());
     }
@@ -83,6 +97,35 @@ public class PetServiceImpl implements PetService {
         Pet pet = getPetById(petId);
         pet.setAdoptionStatus(newStatus);
         pet.setOwnerId(ownerId);
+        petRepository.save(pet);
+    }
+
+    @Override
+    public Set<String> getDistinctSpecies() {
+        return petRepository.findAll().stream()
+                .map(Pet::getSpecies)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    @Override
+    public Set<String> getDistinctBreeds() {
+        return petRepository.findAll().stream()
+                .map(Pet::getBreed)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    @Override
+    public List<Pet> getPetsSortedByName() {
+        List<Pet> list = new ArrayList<>(petRepository.findAll());
+        Collections.sort(list); // Uses Comparable<Pet>
+        return list;
+    }
+
+    @Override
+    public List<Pet> getPetsSortedByAge() {
+        return petRepository.findAll().stream()
+                .sorted(Comparator.comparingInt(Pet::getAge)) // Uses Comparator
+                .collect(Collectors.toList());
     }
 
     private void validatePetInputs(String name, String species, String breed, int age) {

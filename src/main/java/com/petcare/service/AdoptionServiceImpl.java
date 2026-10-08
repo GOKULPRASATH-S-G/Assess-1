@@ -1,6 +1,6 @@
 package com.petcare.service;
 
-import com.petcare.exception.BusinessRuleException;
+import com.petcare.exception.AdoptionException;
 import com.petcare.exception.EntityNotFoundException;
 import com.petcare.exception.ValidationException;
 import com.petcare.model.Adopter;
@@ -12,15 +12,20 @@ import com.petcare.util.IdGenerator;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.stream.Collectors;
 
 /**
  * Implementation of AdoptionService enforcing pet adoption business rules.
+ * Demonstrates Checked Exception handling (AdoptionException),
+ * Map storage, List retrieval, and Queue-based FIFO processing.
  */
 public class AdoptionServiceImpl implements AdoptionService {
     private final Map<String, AdoptionApplication> applications = new LinkedHashMap<>();
+    private final Queue<AdoptionApplication> applicationQueue = new LinkedList<>();
     private final PetService petService;
     private final UserService userService;
 
@@ -30,7 +35,7 @@ public class AdoptionServiceImpl implements AdoptionService {
     }
 
     @Override
-    public AdoptionApplication submitApplication(String petId, String adopterId, String reason) {
+    public AdoptionApplication submitApplication(String petId, String adopterId, String reason) throws AdoptionException {
         if (petId == null || petId.trim().isEmpty()) {
             throw new ValidationException("Pet ID cannot be empty.");
         }
@@ -49,7 +54,7 @@ public class AdoptionServiceImpl implements AdoptionService {
 
         // Business Rule: Prevent applications for pets that are already adopted
         if (!pet.isAvailable()) {
-            throw new BusinessRuleException(
+            throw new AdoptionException(
                     String.format("Cannot submit application: Pet %s (%s) is already %s.",
                             pet.getPetId(), pet.getName(), pet.getAdoptionStatus()));
         }
@@ -61,7 +66,7 @@ public class AdoptionServiceImpl implements AdoptionService {
                         && app.isPending());
 
         if (hasActiveApplication) {
-            throw new BusinessRuleException(
+            throw new AdoptionException(
                     String.format("Adopter %s already has an active pending application for Pet %s.",
                             adopterId, petId));
         }
@@ -69,26 +74,27 @@ public class AdoptionServiceImpl implements AdoptionService {
         String applicationId = IdGenerator.nextId("APP");
         AdoptionApplication app = new AdoptionApplication(applicationId, pet.getPetId(), adopter.getId(), reason.trim());
         applications.put(applicationId, app);
+        applicationQueue.offer(app); // Enqueue for FIFO triage
         return app;
     }
 
     @Override
-    public AdoptionApplication approveApplication(String applicationId, String reviewNotes) {
+    public AdoptionApplication approveApplication(String applicationId, String reviewNotes) throws AdoptionException {
         AdoptionApplication app = getApplicationById(applicationId);
 
         // Business Rule: Cannot approve an already approved or rejected application
         if (app.getStatus() == ApplicationStatus.APPROVED) {
-            throw new BusinessRuleException("Application " + applicationId + " is already approved.");
+            throw new AdoptionException("Application " + applicationId + " is already approved.");
         }
         if (app.getStatus() == ApplicationStatus.REJECTED) {
-            throw new BusinessRuleException("Cannot approve an already rejected application.");
+            throw new AdoptionException("Cannot approve an already rejected application.");
         }
 
         Pet pet = petService.getPetById(app.getPetId());
 
         // Business Rule: Cannot approve an application if the pet has already been adopted
         if (pet.isAdopted()) {
-            throw new BusinessRuleException(
+            throw new AdoptionException(
                     String.format("Cannot approve application: Pet %s (%s) has already been adopted by another applicant (%s).",
                             pet.getPetId(), pet.getName(), pet.getOwnerId()));
         }
@@ -114,22 +120,28 @@ public class AdoptionServiceImpl implements AdoptionService {
             }
         }
 
+        // Synchronize review queue
+        applicationQueue.removeIf(a -> !a.isPending());
+
         return app;
     }
 
     @Override
-    public AdoptionApplication rejectApplication(String applicationId, String reviewNotes) {
+    public AdoptionApplication rejectApplication(String applicationId, String reviewNotes) throws AdoptionException {
         AdoptionApplication app = getApplicationById(applicationId);
 
         if (app.getStatus() == ApplicationStatus.APPROVED) {
-            throw new BusinessRuleException("Cannot reject an application that is already approved.");
+            throw new AdoptionException("Cannot reject an application that is already approved.");
         }
         if (app.getStatus() == ApplicationStatus.REJECTED) {
-            throw new BusinessRuleException("Application " + applicationId + " is already rejected.");
+            throw new AdoptionException("Application " + applicationId + " is already rejected.");
         }
 
         app.setStatus(ApplicationStatus.REJECTED);
         app.setReviewNotes(reviewNotes != null && !reviewNotes.trim().isEmpty() ? reviewNotes.trim() : "Rejected by shelter staff");
+
+        // Synchronize review queue
+        applicationQueue.removeIf(a -> !a.isPending());
 
         return app;
     }
@@ -168,5 +180,29 @@ public class AdoptionServiceImpl implements AdoptionService {
             throw new EntityNotFoundException("Adoption application '" + applicationId + "' not found.");
         }
         return applications.get(applicationId);
+    }
+
+    @Override
+    public Queue<AdoptionApplication> getApplicationQueue() {
+        // Return a fresh LinkedList snapshot of pending applications in FIFO order
+        return applications.values().stream()
+                .filter(AdoptionApplication::isPending)
+                .collect(Collectors.toCollection(LinkedList::new));
+    }
+
+    @Override
+    public AdoptionApplication processNextApplicationInQueue(boolean approve, String reviewNotes) throws AdoptionException {
+        // Drain any stale entries and get next truly pending application
+        while (!applicationQueue.isEmpty()) {
+            AdoptionApplication candidate = applicationQueue.poll();
+            if (candidate.isPending()) {
+                if (approve) {
+                    return approveApplication(candidate.getApplicationId(), reviewNotes);
+                } else {
+                    return rejectApplication(candidate.getApplicationId(), reviewNotes);
+                }
+            }
+        }
+        throw new AdoptionException("No pending applications currently in queue.");
     }
 }

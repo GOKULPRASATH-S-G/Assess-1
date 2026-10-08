@@ -1,20 +1,19 @@
 @echo off
 echo ===================================================
-echo Compiling Pet Adoption & Veterinary System...
+echo Building Pet Adoption & Veterinary System (Maven)...
 echo ===================================================
 
-if not exist bin mkdir bin
-
-javac -d bin -sourcepath src src/com/petcare/Main.java src/com/petcare/model/*.java src/com/petcare/service/*.java src/com/petcare/exception/*.java src/com/petcare/ui/*.java src/com/petcare/util/*.java
+call mvn clean package -DskipTests=true
 
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Compilation failed.
+    echo [ERROR] Maven build failed.
     pause
     exit /b %ERRORLEVEL%
 )
 
-echo [SUCCESS] Compilation successful!
+echo.
+echo [SUCCESS] Build successful!
 echo Starting application...
 echo ===================================================
-java -cp bin com.petcare.Main
+java -jar target\pet-adoption-veterinary-system-1.0.0.jar
 pause

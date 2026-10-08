@@ -35,8 +35,19 @@ public class SampleDataLoader {
         // P002 - Luna  - Cat - Persian  - 2 years - AVAILABLE
         // P003 - Max   - Dog - Beagle   - 4 years - AVAILABLE
         Pet bruno = new Pet("P001", "Bruno", "Dog", "Labrador", 3, Gender.MALE, PetStatus.AVAILABLE, null);
+        bruno.addTrait("Friendly");
+        bruno.addTrait("Trained");
+        bruno.addTrait("Active");
+
         Pet luna = new Pet("P002", "Luna", "Cat", "Persian", 2, Gender.FEMALE, PetStatus.AVAILABLE, null);
+        luna.addTrait("Gentle");
+        luna.addTrait("Indoor");
+        luna.addTrait("Calm");
+
         Pet max = new Pet("P003", "Max", "Dog", "Beagle", 4, Gender.MALE, PetStatus.AVAILABLE, null);
+        max.addTrait("Loyal");
+        max.addTrait("Playful");
+        max.addTrait("Energetic");
 
         petService.addPet(bruno);
         petService.addPet(luna);

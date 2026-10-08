@@ -11,8 +11,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -137,5 +139,17 @@ public class MedicalServiceImpl implements MedicalService {
     @Override
     public List<MedicalRecord> getAllMedicalRecords() {
         return new ArrayList<>(medicalRecords.values());
+    }
+
+    @Override
+    public Set<String> getUniqueVaccineTypes(String petId) {
+        if (petId == null) {
+            return new LinkedHashSet<>();
+        }
+        petService.getPetById(petId.trim());
+        return vaccinations.values().stream()
+                .filter(v -> petId.equalsIgnoreCase(v.getPetId()))
+                .map(Vaccination::getVaccineName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 }

@@ -20,3 +20,6 @@ build/
 # OS generated files
 Thumbs.db
 .DS_Store
+
+# Documentation folder
+docs/

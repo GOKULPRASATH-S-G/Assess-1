@@ -1,11 +1,16 @@
 package com.petcare.model;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a pet registered in the shelter or veterinary clinic system.
+ * Demonstrates Encapsulation, Comparable interface for natural sorting,
+ * and deliberate Set usage for behavioral traits.
  */
-public class Pet {
+public class Pet implements Comparable<Pet> {
     private final String petId;
     private String name;
     private String species;
@@ -14,6 +19,7 @@ public class Pet {
     private Gender gender;
     private PetStatus adoptionStatus;
     private String ownerId; // null while in shelter; set to adopterId once adopted
+    private final Set<String> traits = new LinkedHashSet<>();
 
     public Pet(String petId, String name, String species, String breed, int age, Gender gender) {
         this(petId, name, species, breed, age, gender, PetStatus.AVAILABLE, null);
@@ -90,12 +96,38 @@ public class Pet {
         this.ownerId = ownerId;
     }
 
+    public Set<String> getTraits() {
+        return Collections.unmodifiableSet(traits);
+    }
+
+    public void addTrait(String trait) {
+        if (trait != null && !trait.trim().isEmpty()) {
+            this.traits.add(trait.trim());
+        }
+    }
+
+    public void addTraits(java.util.Collection<String> newTraits) {
+        if (newTraits != null) {
+            for (String t : newTraits) {
+                addTrait(t);
+            }
+        }
+    }
+
     public boolean isAvailable() {
         return this.adoptionStatus == PetStatus.AVAILABLE;
     }
 
     public boolean isAdopted() {
         return this.adoptionStatus == PetStatus.ADOPTED;
+    }
+
+    @Override
+    public int compareTo(Pet other) {
+        if (other == null) return 1;
+        int cmp = this.name.compareToIgnoreCase(other.name);
+        if (cmp != 0) return cmp;
+        return this.petId.compareTo(other.petId);
     }
 
     @Override
@@ -113,8 +145,10 @@ public class Pet {
 
     @Override
     public String toString() {
-        return String.format("%s - %s - %s - %s - %d year(s) - %s - %s%s",
+        String traitStr = traits.isEmpty() ? "" : " | Traits: " + traits;
+        return String.format("%s - %s - %s - %s - %d year(s) - %s - %s%s%s",
                 petId, name, species, breed, age, gender, adoptionStatus,
-                (ownerId != null ? " (Owner: " + ownerId + ")" : ""));
+                (ownerId != null ? " (Owner: " + ownerId + ")" : ""),
+                traitStr);
     }
 }
