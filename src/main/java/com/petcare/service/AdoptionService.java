@@ -8,13 +8,22 @@ import java.util.Queue;
 
 /**
  * Service interface specifying adoption application operations and business rules.
- * Demonstrates checked exception propagation (throws AdoptionException)
- * and deliberate Queue usage for FIFO application triage.
+ * Demonstrates:
+ * - Interface-based architecture.
+ * - Checked exception propagation (throws AdoptionException).
+ * - Method overloading (approveApplication and rejectApplication with/without custom notes).
+ * - Deliberate Queue contract for FIFO application review.
  */
 public interface AdoptionService {
     AdoptionApplication submitApplication(String petId, String adopterId, String reason) throws AdoptionException;
+
+    // Overloaded approval methods
     AdoptionApplication approveApplication(String applicationId, String reviewNotes) throws AdoptionException;
+    AdoptionApplication approveApplication(String applicationId) throws AdoptionException;
+
+    // Overloaded rejection methods
     AdoptionApplication rejectApplication(String applicationId, String reviewNotes) throws AdoptionException;
+    AdoptionApplication rejectApplication(String applicationId) throws AdoptionException;
 
     List<AdoptionApplication> getAllApplications();
     List<AdoptionApplication> getPendingApplications();

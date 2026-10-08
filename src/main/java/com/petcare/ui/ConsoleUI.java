@@ -51,32 +51,35 @@ public class ConsoleUI {
     }
 
     public void start() {
-        boolean running = true;
-        while (running && !isInputClosed) {
-            printMainMenu();
-            String choice = prompt("Enter choice: ").trim();
-            if (isInputClosed) {
-                break;
-            }
-            if (choice.isEmpty()) {
-                continue;
-            }
-            switch (choice) {
-                case "1":
-                    shelterStaffMenu();
+        // Demonstrates try-with-resources on AutoCloseable input scanner resource
+        try (Scanner activeScanner = this.scanner) {
+            boolean running = true;
+            while (running && !isInputClosed) {
+                printMainMenu();
+                String choice = prompt("Enter choice: ").trim();
+                if (isInputClosed) {
                     break;
-                case "2":
-                    adopterMenu();
-                    break;
-                case "3":
-                    veterinarianMenu();
-                    break;
-                case "4":
-                    System.out.println("\nThank you for using Pet Adoption & Veterinary System. Goodbye!");
-                    running = false;
-                    break;
-                default:
-                    printError("Invalid option. Please enter a choice between 1 and 4.");
+                }
+                if (choice.isEmpty()) {
+                    continue;
+                }
+                switch (choice) {
+                    case "1":
+                        shelterStaffMenu();
+                        break;
+                    case "2":
+                        adopterMenu();
+                        break;
+                    case "3":
+                        veterinarianMenu();
+                        break;
+                    case "4":
+                        System.out.println("\nThank you for using Pet Adoption & Veterinary System. Goodbye!");
+                        running = false;
+                        break;
+                    default:
+                        printError("Invalid option. Please enter a choice between 1 and 4.");
+                }
             }
         }
     }

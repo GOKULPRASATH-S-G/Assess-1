@@ -8,12 +8,22 @@ import java.util.Queue;
 
 /**
  * Service interface specifying veterinary appointment booking and lifecycle operations.
- * Demonstrates Abstraction via Interface and deliberate Queue usage for clinic patient check-ins.
+ * Demonstrates:
+ * - Abstraction via Interface.
+ * - Method Overloading (bookAppointment and cancelAppointment with defaults).
+ * - Deliberate Queue contract for clinic patient triage and check-ins.
  */
 public interface AppointmentService {
+    // Overloaded booking methods
     Appointment bookAppointment(String petId, String ownerId, String veterinarianId, LocalDate appointmentDate, String reason);
+    Appointment bookAppointment(String petId, String ownerId, String veterinarianId, LocalDate appointmentDate);
+
     Appointment completeAppointment(String appointmentId);
+
+    // Overloaded cancellation methods
     Appointment cancelAppointment(String appointmentId, String reason);
+    Appointment cancelAppointment(String appointmentId);
+
     List<Appointment> getAllAppointments();
     List<Appointment> getAppointmentsByVeterinarian(String veterinarianId);
     List<Appointment> getAppointmentsByOwner(String ownerId);

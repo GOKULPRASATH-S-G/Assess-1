@@ -1,21 +1,23 @@
-# Assessment 1 — Core Java Checkpoint: Pet Adoption & Veterinary Clinic System
+# Assessment 1 — Core Java Checkpoint: Pet Adoption & Veterinary Clinic Portal
 
-A modular, in-memory console application implemented in **plain Core Java (Java 21 LTS)** built with **Apache Maven**, strictly adhering to the **Assessment 1 Core Java Checkpoint** rubric.
+A modular, in-memory console application implemented in **pure Core Java (Java 17 compatible)** built with **Apache Maven**, adhering strictly to the **Assessment 1 Core Java Checkpoint** rubric.
 
 ---
 
 ## 1. Project Overview & Architecture
 
-The application is structured following clean Object-Oriented Programming (OOP) principles with decoupled architectural layers:
+The application is structured into cohesive packages with decoupled architectural layers:
 
 ```text
 Assess-1/
-├── pom.xml                                      # Maven project configuration (Java 21, JUnit 5)
+├── pom.xml                                      # Maven configuration (Java 17, JUnit 5 Jupiter)
 ├── README.md                                    # Project documentation & execution guide
-├── .gitignore                                   # Standard ignores for Java, Maven, and IDEs
+├── .gitignore                                   # Standard ignores for target/, *.class, and IDEs
 ├── run.bat                                      # One-click Windows build and launch script
 ├── docs/
-│   └── ASSESSMENT-1-AUDIT.md                    # Rubric audit report
+│   ├── ASSESSMENT-1-CHECKLIST.md                # Complete 9-criteria assessment evidence checklist
+│   ├── ASSESSMENT-1-AUDIT.md                    # Rubric audit report
+│   └── AI-REVIEW.md                             # Copilot snippet review & flaw analysis
 ├── src/
 │   ├── main/
 │   │   └── java/
@@ -69,7 +71,7 @@ Assess-1/
 │                   ├── AdoptionFlowTest.java        # Flow 1 JUnit 5 lifecycle tests
 │                   ├── VeterinaryFlowTest.java      # Flow 2 JUnit 5 lifecycle tests
 │                   └── RubricComplianceTest.java    # Rubric criteria verification tests
-└── target/                                      # Maven compiled classes and JAR artifact (gitignored)
+└── target/                                      # Maven build artifacts (gitignored)
 ```
 
 ---
@@ -77,79 +79,93 @@ Assess-1/
 ## 2. Core Java Checkpoint Rubric Alignment
 
 ### A. Object-Oriented Programming (OOP)
-- **Encapsulation**: All entity attributes are private, exposed via getters/setters with strict defensive encapsulation (e.g. unmodifiable collections via `Collections.unmodifiableSet` and `Collections.unmodifiableList`).
-- **Inheritance**: Abstract base class `User` encapsulates common fields (`id`, `name`, `email`, `phone`, `role`). Subclasses `Adopter`, `ShelterStaff`, and `Veterinarian` extend `User` with role-specific attributes and behaviors using `super(...)`.
-- **Polymorphism**: `User` declares the abstract method `public abstract String getRoleDescription()`, overridden uniquely by each subclass.
-- **Interfaces**: Domain operations are abstracted behind clean interfaces:
-  - `Repository<T, ID>`
-  - `PetService`
-  - `AdoptionService`
-  - `AppointmentService`
-  - `MedicalService`
+- **Encapsulation**: All fields in models (`Pet`, `User`, `AdoptionApplication`, `Appointment`, `MedicalRecord`, `Vaccination`) are private. Access is mediated via getters, and mutations are controlled. Collections returned defensively via `Collections.unmodifiableSet` and `Collections.unmodifiableList`.
+- **Constructors**: Proper parameterized constructors with explicit `this(...)` constructor chaining.
+- **Access Modifiers**: Meaningful use of `public`, `protected`, and `private` across classes and packages.
+- **Single Responsibility**: Clean division between Model (data), Service (business rules), Repository (storage), Exception (error contracts), and UI (console presentation).
+- **Constants**: Fixed business constants eliminate magic numbers (e.g. `MIN_PET_AGE = 0`, `DEFAULT_ANNUAL_BOOSTER_MONTHS = 12`, `APPLICATION_ID_PREFIX = "APP"`).
 
-### B. Custom Exception Hierarchy
+### B. Inheritance & Polymorphism
+- **Inheritance Hierarchy**:
+  - `User` (`abstract` base class) encapsulates shared user identity (`id`, `name`, `email`, `phone`, `role`).
+  - `Adopter` extends `User` (tracks owned pet IDs, calls `super(...)`).
+  - `ShelterStaff` extends `User` (adds department, calls `super(...)`).
+  - `Veterinarian` extends `User` (adds specialization and license number, calls `super(...)`).
+- **Method Overriding (Dynamic Polymorphism)**:
+  - `public abstract String getRoleDescription()` in `User` is overridden uniquely by each subclass.
+  - Overridden `toString()`, `equals()`, and `hashCode()`.
+- **Method Overloading (Static Polymorphism)**:
+  - `PetService`: `addPet(String, String, String, int, Gender)` vs `addPet(Pet)`; `getPetsSortedByAge()` vs `getPetsSortedByAge(boolean ascending)`.
+  - `MedicalService`: `recordVaccination(petId, vaccine, date)` vs `recordVaccination(petId, vaccine, date, dueDate)` vs `recordVaccination(petId, vaccine, date, boosterMonths)`.
+  - `AdoptionService`: `approveApplication(id)` vs `approveApplication(id, notes)`; `rejectApplication(id)` vs `rejectApplication(id, notes)`.
+  - `AppointmentService`: `bookAppointment(...)` with/without custom reason.
+- **Interface-Based Programming**:
+  - High-level callers interact through interfaces: `PetService`, `AdoptionService`, `AppointmentService`, `MedicalService`, and `Repository<T, ID>`.
+
+### C. Custom Exception Handling
 1. **Custom Checked Exception**:
    - `public class AdoptionException extends Exception`
    - Declared with `throws AdoptionException` in `AdoptionService` interface and implementation.
-   - Thrown when attempting to adopt an unavailable/already adopted pet, submitting duplicate pending applications, or approving/rejecting invalid applications.
-   - Caught explicitly and handled gracefully without swallowing in `ConsoleUI` and tested in JUnit.
+   - Thrown when attempting to adopt an already adopted pet or submitting duplicate pending applications.
+   - Explicitly caught in `ConsoleUI` and tested via JUnit 5.
 2. **Custom Unchecked Exception**:
    - `public class PetNotFoundException extends EntityNotFoundException` (which extends `PetCareException extends RuntimeException`).
-   - Thrown by `PetServiceImpl` whenever a lookup for a non-existent pet ID occurs.
-   - Fully unchecked and compliant with `RuntimeException`.
+   - Thrown by `PetServiceImpl` when a pet lookup fails.
+3. **Exception Strategy**:
+   - Specific multi-catch in `ConsoleUI`: `catch (AdoptionException | EntityNotFoundException | ValidationException | BusinessRuleException e)`.
+   - No broad `catch (Exception e)`. Exceptions are never swallowed.
+4. **Try-With-Resources**:
+   - `ConsoleUI#start()` manages standard input using `try (Scanner activeScanner = this.scanner) { ... }`.
 
-### C. Deliberate Collection Usage (List, Set, Map, Queue)
-The application deliberately and meaningfully uses all four required collections:
-1. **`List`** (`ArrayList`):
-   - Storing sequential domain records: `List<Pet>`, `List<AdoptionApplication>`, `List<Appointment>`, `List<MedicalRecord>`, `List<Vaccination>`.
-2. **`Set`** (`LinkedHashSet` / `HashSet`):
-   - Behavioral pet traits: `Pet.getTraits()` returns `Set<String>`.
-   - Distinct species query: `PetService.getDistinctSpecies()` returns `Set<String>`.
-   - Distinct breeds query: `PetService.getDistinctBreeds()` returns `Set<String>`.
-   - Unique administered vaccines: `MedicalService.getUniqueVaccineTypes(petId)` returns `Set<String>`.
-3. **`Map`** (`LinkedHashMap`):
-   - O(1) primary key lookups: `Map<String, Pet>`, `Map<String, User>`, `Map<String, AdoptionApplication>`, `Map<String, Appointment>`.
-4. **`Queue`** (`LinkedList`):
-   - First-In, First-Out (FIFO) adoption application review queue: `AdoptionService.getApplicationQueue()` and `processNextApplicationInQueue(...)`.
-   - Daily clinic patient check-in queue: `AppointmentService.getDailyQueue()`, `checkInAppointment(...)`, and `processNextAppointmentInQueue()`.
+### D. Collections Framework (List, Set, Map, Queue)
 
-### D. Sorting (Comparable & Comparator)
-- **`Comparable<Pet>`**: Implemented directly on `Pet` to define natural ordering alphabetically by pet name (with secondary tie-breaker by ID). Used via `PetService.getPetsSortedByName()` and `Collections.sort(pets)`.
-- **`Comparator`**: Used for custom criteria sorting:
-  - Sorting pets by age: `Comparator.comparingInt(Pet::getAge)`.
-  - Sorting upcoming vaccinations by due date: `Comparator.comparing(Vaccination::getNextDueDate)`.
+| Collection | Implementation | Domain Purpose | Technical Reason for Selection |
+|---|---|---|---|
+| **`List`** | `java.util.ArrayList` | `List<Pet>`, `List<AdoptionApplication>`, `List<Appointment>`, `List<MedicalRecord>`, `List<Vaccination>` | Maintains ordered sequential access, preserves insertion sequence, and provides fast index-based traversal for console tables. |
+| **`Set`** | `java.util.LinkedHashSet` | Pet traits (`Pet.getTraits()`), `getDistinctSpecies()`, `getDistinctBreeds()`, `getUniqueVaccineTypes()` | Guarantees uniqueness automatically, eliminating redundant entries without manual de-duplication loops. |
+| **`Map`** | `java.util.LinkedHashMap` | `storage` in `InMemoryRepository`, `applications`, `appointments`, `medicalRecords` | Provides fast $O(1)$ constant-time lookup by unique entity identifier (`ID`) while preserving insertion order. |
+| **`Queue`** | `java.util.LinkedList` | Adoption review queue (`applicationQueue`) and daily clinic triage queue (`checkInQueue`) | Implements First-In, First-Out (FIFO) processing to guarantee fair, sequential review of applications and patient arrivals without starvation. |
 
 ### E. Generics
-- Generic repository interface `Repository<T, ID>` and in-memory implementation `InMemoryRepository<T, ID>`.
-- Bounded wildcard implementation demonstrating PECS:
+- Generic repository interface `Repository<T, ID>` with type parameters for entity (`T`) and primary key (`ID`).
+- In-memory generic implementation `InMemoryRepository<T, ID>` backed by a `LinkedHashMap`.
+- Bounded wildcard method demonstrating PECS (Producer Extends):
   ```java
   public void saveAll(List<? extends T> entities)
   ```
-- Utilized in `PetServiceImpl` to manage entity storage without tightly coupling to raw map operations.
+- Used in `PetServiceImpl`: `Repository<Pet, String> petRepository`.
+
+### F. Sorting (Comparable & Comparator)
+- **Natural Ordering (`Comparable<Pet>`)**:
+  - `Pet implements Comparable<Pet>` sorting alphabetically by pet name (with secondary tie-breaker by ID).
+  - Used in `PetService#getPetsSortedByName()` via `Collections.sort(list)`.
+- **Custom Ordering (`Comparator`)**:
+  - Sorting pets by age: `Comparator.comparingInt(Pet::getAge)` in `PetService#getPetsSortedByAge()`.
+  - Sorting upcoming vaccinations: `Comparator.comparing(Vaccination::getNextDueDate)` in `MedicalService#getUpcomingVaccinations()`.
 
 ---
 
 ## 3. Two Core Workflows
 
 ### Flow 1: Pet Adoption Lifecycle
-1. **Registration**: Shelter staff registers pets into the system with initial status `AVAILABLE` and personality traits (`Set<String>`).
-2. **Catalog & Search**: Adopter browses available pets, filters by species/breed, and sorts by name or age.
+1. **Pet Registration**: Shelter staff adds pets (`P001`, `P002`, `P003`) with status `AVAILABLE` and personality traits (`Set<String>`).
+2. **Catalog Browsing**: Adopter searches available pets, filters by species/breed, or sorts by name or age.
 3. **Application Submission**: Adopter submits an application (`AdoptionApplication`).
    - Validated: Pet must exist and must be `AVAILABLE` (throws `AdoptionException` if already adopted).
    - Validated: Adopter cannot have multiple active `PENDING` applications for the same pet.
    - Enqueued into the FIFO review queue (`Queue<AdoptionApplication>`).
-4. **Application Review & Decision**: Shelter staff reviews pending applications by ID or sequentially through the FIFO queue.
-   - **Approval**: Status changes to `APPROVED`, pet status changes to `ADOPTED`, pet owner is assigned to adopter, pet ID is added to adopter's owned list, and competing pending applications for the same pet are automatically marked `REJECTED`.
+4. **Application Review**: Shelter staff reviews pending applications by ID or sequentially through the FIFO queue.
+   - **Approval**: Status changes to `APPROVED`, pet status changes to `ADOPTED`, pet owner is assigned, and competing pending applications for the same pet are automatically marked `REJECTED`.
    - **Rejection**: Status changes to `REJECTED`, pet remains `AVAILABLE`.
 
 ### Flow 2: Veterinary Appointment & Vaccination Tracking
-1. **Appointment Booking**: Adopter books an appointment for their owned pet with a licensed veterinarian (`Appointment`).
+1. **Appointment Booking**: Pet owner books an appointment for their adopted pet with a licensed veterinarian (`Appointment`).
    - Validated: Pet must be adopted and owned by the requesting adopter (`BusinessRuleException`).
-2. **Clinic Check-in**: Pet owner checks in for the day, entering the clinic's triage queue (`Queue<Appointment>`).
-3. **Examination & Completion**: Veterinarian completes the appointment and creates an official `MedicalRecord` (visit date, diagnosis, treatment notes).
-4. **Vaccination Administration**: Veterinarian administers a vaccine (`Vaccination`) with automatic or custom booster calculation.
-   - Validated: Next due date must be strictly after the administration date (`BusinessRuleException`).
-   - Queryable: Unique administered vaccines retrieved via `Set<String>`.
+2. **Clinic Check-in**: Owner checks in for the appointment, entering the clinic's triage queue (`Queue<Appointment>`).
+3. **Examination & Completion**: Veterinarian completes the appointment and records an official `MedicalRecord` (visit date, diagnosis, treatment notes).
+4. **Vaccination Administration**: Veterinarian administers a vaccine (`Vaccination`) with automatic (12-month) or custom booster interval.
+   - Validated: Next due date must be strictly after administration date (`BusinessRuleException`).
+   - Queryable: Distinct administered vaccines retrieved via `Set<String>`.
 
 ---
 
@@ -166,13 +182,35 @@ On startup, the system seeds the following sample records:
 
 ---
 
-## 5. How to Build, Test, and Run
+## 5. Memory Awareness
+
+### Heap vs. Stack Memory
+- **Stack Memory**:
+  - Used for thread execution and method call stack frames.
+  - Stores local primitive variables (e.g. `int age`, `boolean approve`) and references to objects (e.g. `Pet pet`, `String petId`).
+  - Stack allocation and de-allocation are automatic as methods enter and return (LIFO order).
+- **Heap Memory**:
+  - Used for dynamic object and array allocation (e.g. `new Pet(...)`, `new LinkedHashMap<>()`).
+  - Objects created with `new` reside on the Heap, while their references are stored in Stack frames.
+  - Managed by the Java Garbage Collector (GC), which frees objects that are no longer reachable from any GC root.
+
+### Realistic Memory Pitfall: Unintentional Object Retention (Memory Leak)
+- **Problem**: In-memory collections (such as `Map`, `List`, or `Queue`) that retain object references long after they are no longer needed prevent the Garbage Collector from reclaiming Heap memory.
+- **Impact in Domain**: If applications, completed appointments, or canceled items are never removed from `Queue` or internal collections, the heap memory consumed grows indefinitely, eventually causing an `OutOfMemoryError`.
+- **Mitigation Applied**: 
+  - Periodic queue synchronization (`applicationQueue.removeIf(a -> !a.isPending())`).
+  - Active queue polling (`queue.poll()`) when processing triage items.
+  - Returning unmodifiable or shallow copy snapshots (`new ArrayList<>(storage.values())`) to prevent callers from corrupting internal collection references.
+
+---
+
+## 6. How to Build, Test, and Run
 
 ### Prerequisites
-- **JDK 21** (or JDK 17+ compatible)
+- **JDK 17 or higher** (JDK 17 LTS / JDK 21 LTS)
 - **Apache Maven 3.8+**
 
-### Build Commands
+### Maven Commands
 
 1. **Compile all sources**:
    ```bash
@@ -202,3 +240,11 @@ On startup, the system seeds the following sample records:
   ```cmd
   run.bat
   ```
+
+---
+
+## 7. Documentation Index
+
+- [docs/ASSESSMENT-1-CHECKLIST.md](file:///c:/Users/gokul/Downloads/Assessment%201/docs/ASSESSMENT-1-CHECKLIST.md): Complete rubric checklist with file/line evidence for all 9 criteria (100 marks).
+- [docs/ASSESSMENT-1-AUDIT.md](file:///c:/Users/gokul/Downloads/Assessment%201/docs/ASSESSMENT-1-AUDIT.md): Detailed rubric audit and assessment status.
+- [docs/AI-REVIEW.md](file:///c:/Users/gokul/Downloads/Assessment%201/docs/AI-REVIEW.md): GitHub Copilot prompt, snippet review, flaw identification (`String ==` reference equality bug), and corrected implementation.

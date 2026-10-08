@@ -19,9 +19,21 @@ import java.util.stream.Collectors;
 
 /**
  * In-memory implementation of PetService utilizing a generic Repository,
- * deliberate Set collections, Comparable, and Comparator sorting.
+ * deliberate Set collections, Comparable natural sorting, and Comparator custom sorting.
+ * Demonstrates:
+ * - Generic Repository<Pet, String> pattern decoupling storage.
+ * - Map backing store inside repository for O(1) ID lookups.
+ * - Set collection choice for distinct species and breeds.
+ * - Method Overloading on addPet and getPetsSortedByAge.
+ * - Constants for fixed business rules (MIN_PET_AGE).
  */
 public class PetServiceImpl implements PetService {
+
+    // Constants for fixed business rules and ID formatting
+    public static final String PET_ID_PREFIX = "P";
+    public static final int MIN_PET_AGE = 0;
+
+    // Generic repository abstraction managing entities in memory
     private final Repository<Pet, String> petRepository;
 
     public PetServiceImpl() {
@@ -32,15 +44,17 @@ public class PetServiceImpl implements PetService {
         this.petRepository = petRepository;
     }
 
+    // Overload 1: full field constructor with auto-generated ID
     @Override
     public Pet addPet(String name, String species, String breed, int age, Gender gender) {
         validatePetInputs(name, species, breed, age);
-        String petId = IdGenerator.nextId("P");
+        String petId = IdGenerator.nextId(PET_ID_PREFIX);
         Pet pet = new Pet(petId, name.trim(), species.trim(), breed.trim(), age, gender != null ? gender : Gender.MALE);
         petRepository.save(pet);
         return pet;
     }
 
+    // Overload 2: pre-instantiated entity
     @Override
     public void addPet(Pet pet) {
         if (pet == null) {
@@ -100,6 +114,7 @@ public class PetServiceImpl implements PetService {
         petRepository.save(pet);
     }
 
+    // Deliberate Set usage: guarantees uniqueness of species
     @Override
     public Set<String> getDistinctSpecies() {
         return petRepository.findAll().stream()
@@ -107,6 +122,7 @@ public class PetServiceImpl implements PetService {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
+    // Deliberate Set usage: guarantees uniqueness of breeds
     @Override
     public Set<String> getDistinctBreeds() {
         return petRepository.findAll().stream()
@@ -114,6 +130,7 @@ public class PetServiceImpl implements PetService {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
+    // Natural sorting via Comparable<Pet> (by name)
     @Override
     public List<Pet> getPetsSortedByName() {
         List<Pet> list = new ArrayList<>(petRepository.findAll());
@@ -121,10 +138,21 @@ public class PetServiceImpl implements PetService {
         return list;
     }
 
+    // Overload 1: ascending age sorting using Comparator
     @Override
     public List<Pet> getPetsSortedByAge() {
+        return getPetsSortedByAge(true);
+    }
+
+    // Overload 2: parameter-driven ascending/descending age sorting using Comparator
+    @Override
+    public List<Pet> getPetsSortedByAge(boolean ascending) {
+        Comparator<Pet> comp = Comparator.comparingInt(Pet::getAge);
+        if (!ascending) {
+            comp = comp.reversed();
+        }
         return petRepository.findAll().stream()
-                .sorted(Comparator.comparingInt(Pet::getAge)) // Uses Comparator
+                .sorted(comp)
                 .collect(Collectors.toList());
     }
 
@@ -138,7 +166,7 @@ public class PetServiceImpl implements PetService {
         if (breed == null || breed.trim().isEmpty()) {
             throw new ValidationException("Pet breed cannot be empty.");
         }
-        if (age < 0) {
+        if (age < MIN_PET_AGE) {
             throw new ValidationException("Pet age cannot be negative. Provided: " + age);
         }
     }

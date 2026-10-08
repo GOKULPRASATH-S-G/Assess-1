@@ -21,11 +21,25 @@ import java.util.stream.Collectors;
 
 /**
  * In-memory implementation of AppointmentService enforcing appointment business rules.
- * Demonstrates Map storage, List filtering, and deliberate Queue usage for clinic patient check-ins.
+ * Demonstrates:
+ * - Map collection choice: O(1) primary key retrieval and appointment tracking.
+ * - Queue collection choice: FIFO triage for daily patient arrivals without favoritism.
+ * - Method Overloading on bookAppointment and cancelAppointment.
+ * - Constants for fixed business rules and default reasons.
  */
 public class AppointmentServiceImpl implements AppointmentService {
+
+    // Constants for business rules and formatting
+    public static final String APT_ID_PREFIX = "APT";
+    public static final String DEFAULT_ROUTINE_CHECKUP_REASON = "Routine veterinary checkup";
+    public static final String DEFAULT_CANCELLATION_REASON = "Cancelled by client/clinic";
+
+    // Map: Chosen for fast O(1) lookup by appointmentId
     private final Map<String, Appointment> appointments = new LinkedHashMap<>();
+
+    // Queue: Chosen for FIFO daily clinic patient waiting list
     private final Queue<Appointment> checkInQueue = new LinkedList<>();
+
     private final PetService petService;
     private final UserService userService;
 
@@ -34,6 +48,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         this.userService = userService;
     }
 
+    // Overload 1: full specification with reason
     @Override
     public Appointment bookAppointment(String petId, String ownerId, String veterinarianId,
                                        LocalDate appointmentDate, String reason) {
@@ -65,11 +80,18 @@ public class AppointmentServiceImpl implements AppointmentService {
                             pet.getPetId(), pet.getName(), owner.getName()));
         }
 
-        String appointmentId = IdGenerator.nextId("APT");
+        String appointmentId = IdGenerator.nextId(APT_ID_PREFIX);
         Appointment appointment = new Appointment(appointmentId, pet.getPetId(), owner.getId(),
                 vet.getId(), appointmentDate, reason.trim());
         appointments.put(appointmentId, appointment);
         return appointment;
+    }
+
+    // Overload 2: defaults to routine checkup reason
+    @Override
+    public Appointment bookAppointment(String petId, String ownerId, String veterinarianId,
+                                       LocalDate appointmentDate) {
+        return bookAppointment(petId, ownerId, veterinarianId, appointmentDate, DEFAULT_ROUTINE_CHECKUP_REASON);
     }
 
     @Override
@@ -89,6 +111,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         return apt;
     }
 
+    // Overload 1: with explicit cancellation reason
     @Override
     public Appointment cancelAppointment(String appointmentId, String reason) {
         Appointment apt = getAppointmentById(appointmentId);
@@ -103,6 +126,12 @@ public class AppointmentServiceImpl implements AppointmentService {
         apt.setStatus(AppointmentStatus.CANCELLED);
         checkInQueue.remove(apt);
         return apt;
+    }
+
+    // Overload 2: defaults to standard cancellation reason
+    @Override
+    public Appointment cancelAppointment(String appointmentId) {
+        return cancelAppointment(appointmentId, DEFAULT_CANCELLATION_REASON);
     }
 
     @Override

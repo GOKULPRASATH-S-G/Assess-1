@@ -19,10 +19,23 @@ import java.util.stream.Collectors;
 
 /**
  * In-memory implementation of MedicalService managing clinic visits, diagnoses, and vaccinations.
+ * Demonstrates:
+ * - Map collection choice: O(1) primary key retrieval and maintaining visit order.
+ * - Set collection choice: automatic duplicate elimination for distinct pet vaccinations.
+ * - Method overloading on recordVaccination.
+ * - Business constants preventing magic numbers.
  */
 public class MedicalServiceImpl implements MedicalService {
+
+    // Constants for business rules and formatting
+    public static final int DEFAULT_ANNUAL_BOOSTER_MONTHS = 12;
+    public static final String VACCINATION_ID_PREFIX = "VAC";
+    public static final String MEDICAL_RECORD_ID_PREFIX = "MED";
+
+    // Map: Chosen for fast O(1) key lookups by recordId and vaccinationId
     private final Map<String, MedicalRecord> medicalRecords = new LinkedHashMap<>();
     private final Map<String, Vaccination> vaccinations = new LinkedHashMap<>();
+
     private final PetService petService;
     private final UserService userService;
 
@@ -54,13 +67,14 @@ public class MedicalServiceImpl implements MedicalService {
         petService.getPetById(petId.trim());
         Veterinarian vet = userService.getVeterinarianById(veterinarianId.trim());
 
-        String recordId = IdGenerator.nextId("MED");
+        String recordId = IdGenerator.nextId(MEDICAL_RECORD_ID_PREFIX);
         MedicalRecord record = new MedicalRecord(recordId, petId.trim(), vet.getId(),
                 visitDate, diagnosis.trim(), treatmentNotes.trim());
         medicalRecords.put(recordId, record);
         return record;
     }
 
+    // Method Overload 1: full specification with explicit next due date
     @Override
     public Vaccination recordVaccination(String petId, String vaccineName,
                                          LocalDate vaccinationDate, LocalDate nextDueDate) {
@@ -77,7 +91,7 @@ public class MedicalServiceImpl implements MedicalService {
             throw new ValidationException("Next due date cannot be null.");
         }
 
-        // Business Rule: Next vaccination date must be after vaccination date
+        // Business Rule: Next vaccination date must be strictly after vaccination date
         if (!nextDueDate.isAfter(vaccinationDate)) {
             throw new BusinessRuleException(
                     String.format("Invalid dates: Next vaccination due date (%s) must be strictly after the vaccination date (%s).",
@@ -87,25 +101,38 @@ public class MedicalServiceImpl implements MedicalService {
         // Verify pet exists
         petService.getPetById(petId.trim());
 
-        String vaccinationId = IdGenerator.nextId("VAC");
+        String vaccinationId = IdGenerator.nextId(VACCINATION_ID_PREFIX);
         Vaccination vaccination = new Vaccination(vaccinationId, petId.trim(), vaccineName.trim(),
                 vaccinationDate, nextDueDate);
         vaccinations.put(vaccinationId, vaccination);
         return vaccination;
     }
 
+    // Method Overload 2: defaults to standard annual booster (12 months)
+    @Override
+    public Vaccination recordVaccination(String petId, String vaccineName, LocalDate vaccinationDate) {
+        return recordVaccination(petId, vaccineName, vaccinationDate, DEFAULT_ANNUAL_BOOSTER_MONTHS);
+    }
+
+    // Method Overload 3: specifies custom booster interval in months
+    @Override
+    public Vaccination recordVaccination(String petId, String vaccineName,
+                                         LocalDate vaccinationDate, int boosterMonths) {
+        int months = boosterMonths > 0 ? boosterMonths : DEFAULT_ANNUAL_BOOSTER_MONTHS;
+        LocalDate calculatedDueDate = vaccinationDate != null ? vaccinationDate.plusMonths(months) : null;
+        return recordVaccination(petId, vaccineName, vaccinationDate, calculatedDueDate);
+    }
+
+    // Backward-compatible alias
     @Override
     public Vaccination recordVaccinationWithAutoDueDate(String petId, String vaccineName,
                                                         LocalDate vaccinationDate, int boosterMonths) {
-        int months = boosterMonths > 0 ? boosterMonths : 12; // default annual booster (12 months)
-        LocalDate calculatedDueDate = vaccinationDate.plusMonths(months);
-        return recordVaccination(petId, vaccineName, vaccinationDate, calculatedDueDate);
+        return recordVaccination(petId, vaccineName, vaccinationDate, boosterMonths);
     }
 
     @Override
     public List<MedicalRecord> getMedicalHistoryByPet(String petId) {
         if (petId == null) return new ArrayList<>();
-        // Verify pet exists
         petService.getPetById(petId.trim());
         return medicalRecords.values().stream()
                 .filter(r -> petId.equalsIgnoreCase(r.getPetId()))
@@ -115,7 +142,6 @@ public class MedicalServiceImpl implements MedicalService {
     @Override
     public List<Vaccination> getVaccinationHistoryByPet(String petId) {
         if (petId == null) return new ArrayList<>();
-        // Verify pet exists
         petService.getPetById(petId.trim());
         return vaccinations.values().stream()
                 .filter(v -> petId.equalsIgnoreCase(v.getPetId()))
@@ -141,6 +167,7 @@ public class MedicalServiceImpl implements MedicalService {
         return new ArrayList<>(medicalRecords.values());
     }
 
+    // Deliberate Set usage: eliminates duplicates across administered vaccine types
     @Override
     public Set<String> getUniqueVaccineTypes(String petId) {
         if (petId == null) {

@@ -20,12 +20,26 @@ import java.util.stream.Collectors;
 
 /**
  * Implementation of AdoptionService enforcing pet adoption business rules.
- * Demonstrates Checked Exception handling (AdoptionException),
- * Map storage, List retrieval, and Queue-based FIFO processing.
+ * Demonstrates:
+ * - Checked Exception handling (AdoptionException).
+ * - Collection choices:
+ *     * Map (LinkedHashMap): O(1) key lookups by applicationId while preserving insertion order.
+ *     * Queue (LinkedList): FIFO processing of pending applications without starvation.
+ *     * List (ArrayList): Returning ordered copies of records for presentation.
+ * - Method Overloading on approveApplication and rejectApplication.
+ * - Constants for fixed business rules and default notes.
  */
 public class AdoptionServiceImpl implements AdoptionService {
+
+    // Constants for fixed business rules
+    public static final String APPLICATION_ID_PREFIX = "APP";
+    public static final String DEFAULT_APPROVAL_NOTES = "Approved by shelter staff";
+    public static final String DEFAULT_REJECTION_NOTES = "Rejected by shelter staff";
+
+    // Collections
     private final Map<String, AdoptionApplication> applications = new LinkedHashMap<>();
     private final Queue<AdoptionApplication> applicationQueue = new LinkedList<>();
+
     private final PetService petService;
     private final UserService userService;
 
@@ -71,13 +85,14 @@ public class AdoptionServiceImpl implements AdoptionService {
                             adopterId, petId));
         }
 
-        String applicationId = IdGenerator.nextId("APP");
+        String applicationId = IdGenerator.nextId(APPLICATION_ID_PREFIX);
         AdoptionApplication app = new AdoptionApplication(applicationId, pet.getPetId(), adopter.getId(), reason.trim());
         applications.put(applicationId, app);
         applicationQueue.offer(app); // Enqueue for FIFO triage
         return app;
     }
 
+    // Overload 1: full specification with review notes
     @Override
     public AdoptionApplication approveApplication(String applicationId, String reviewNotes) throws AdoptionException {
         AdoptionApplication app = getApplicationById(applicationId);
@@ -101,7 +116,7 @@ public class AdoptionServiceImpl implements AdoptionService {
 
         // State changes
         app.setStatus(ApplicationStatus.APPROVED);
-        app.setReviewNotes(reviewNotes != null && !reviewNotes.trim().isEmpty() ? reviewNotes.trim() : "Approved by shelter staff");
+        app.setReviewNotes(reviewNotes != null && !reviewNotes.trim().isEmpty() ? reviewNotes.trim() : DEFAULT_APPROVAL_NOTES);
 
         // Update Pet
         petService.updatePetStatus(pet.getPetId(), PetStatus.ADOPTED, app.getAdopterId());
@@ -126,6 +141,13 @@ public class AdoptionServiceImpl implements AdoptionService {
         return app;
     }
 
+    // Overload 2: defaults to standard approval notes
+    @Override
+    public AdoptionApplication approveApplication(String applicationId) throws AdoptionException {
+        return approveApplication(applicationId, DEFAULT_APPROVAL_NOTES);
+    }
+
+    // Overload 1: full specification with rejection reason
     @Override
     public AdoptionApplication rejectApplication(String applicationId, String reviewNotes) throws AdoptionException {
         AdoptionApplication app = getApplicationById(applicationId);
@@ -138,12 +160,18 @@ public class AdoptionServiceImpl implements AdoptionService {
         }
 
         app.setStatus(ApplicationStatus.REJECTED);
-        app.setReviewNotes(reviewNotes != null && !reviewNotes.trim().isEmpty() ? reviewNotes.trim() : "Rejected by shelter staff");
+        app.setReviewNotes(reviewNotes != null && !reviewNotes.trim().isEmpty() ? reviewNotes.trim() : DEFAULT_REJECTION_NOTES);
 
         // Synchronize review queue
         applicationQueue.removeIf(a -> !a.isPending());
 
         return app;
+    }
+
+    // Overload 2: defaults to standard rejection notes
+    @Override
+    public AdoptionApplication rejectApplication(String applicationId) throws AdoptionException {
+        return rejectApplication(applicationId, DEFAULT_REJECTION_NOTES);
     }
 
     @Override
@@ -184,15 +212,11 @@ public class AdoptionServiceImpl implements AdoptionService {
 
     @Override
     public Queue<AdoptionApplication> getApplicationQueue() {
-        // Return a fresh LinkedList snapshot of pending applications in FIFO order
-        return applications.values().stream()
-                .filter(AdoptionApplication::isPending)
-                .collect(Collectors.toCollection(LinkedList::new));
+        return new LinkedList<>(applicationQueue);
     }
 
     @Override
     public AdoptionApplication processNextApplicationInQueue(boolean approve, String reviewNotes) throws AdoptionException {
-        // Drain any stale entries and get next truly pending application
         while (!applicationQueue.isEmpty()) {
             AdoptionApplication candidate = applicationQueue.poll();
             if (candidate.isPending()) {

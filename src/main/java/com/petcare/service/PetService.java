@@ -9,11 +9,17 @@ import java.util.Set;
 
 /**
  * Service interface specifying pet management operations.
- * Demonstrates Abstraction via Interface and collection contracts.
+ * Demonstrates:
+ * - Abstraction via Interface.
+ * - Method Overloading on addPet and getPetsSortedByAge.
+ * - Deliberate Set collection contracts for distinct species/breeds.
+ * - Sorting via Comparable and Comparator.
  */
 public interface PetService {
+    // Overloaded addition methods
     Pet addPet(String name, String species, String breed, int age, Gender gender);
     void addPet(Pet pet);
+
     Pet getPetById(String petId);
     List<Pet> getAllPets();
     List<Pet> getAvailablePets();
@@ -25,7 +31,10 @@ public interface PetService {
     Set<String> getDistinctSpecies();
     Set<String> getDistinctBreeds();
 
-    // Sorting via Comparable (natural name order) and Comparator (age)
+    // Natural sorting via Comparable<Pet>
     List<Pet> getPetsSortedByName();
+
+    // Overloaded sorting via Comparator
     List<Pet> getPetsSortedByAge();
+    List<Pet> getPetsSortedByAge(boolean ascending);
 }

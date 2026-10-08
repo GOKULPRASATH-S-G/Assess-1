@@ -141,4 +141,19 @@ public class RubricComplianceTest {
         assertEquals(3, pets.get(1).getAge()); // Bella
         assertEquals(5, pets.get(2).getAge()); // Charlie
     }
+
+    @Test
+    @DisplayName("Rubric: Method Overloading demonstration across domain services")
+    void testMethodOverloadingDemonstration() {
+        PetService service = new PetServiceImpl();
+        Pet p1 = service.addPet("Coco", "Dog", "Pug", 2, Gender.MALE);
+        Pet p2 = service.addPet("Milo", "Dog", "Pug", 7, Gender.MALE);
+
+        // Overloaded sorting: ascending vs descending
+        List<Pet> asc = service.getPetsSortedByAge(); // Overload 1
+        List<Pet> desc = service.getPetsSortedByAge(false); // Overload 2
+
+        assertEquals(2, asc.get(0).getAge());
+        assertEquals(7, desc.get(0).getAge());
+    }
 }
